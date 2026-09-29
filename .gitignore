@@ -1,0 +1,23 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets — never commit
+.env
+.env.*
+*.pem
+*.key
+
+# Logs and runtime state
+*.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+
+# Local scratch
+*.tmp
+*.bak
