@@ -17,6 +17,24 @@
       "skills": [
         "./skills/mcp-diagnostics"
       ]
+    },
+    {
+      "name": "component-upgrade",
+      "description": "Plan and execute version upgrades of self-hosted components -- Docker containers, databases, and git-deployed services -- with a restore-verified backup, an execution-driven config-migration check, and a tested rollback path.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/component-upgrade"
+      ]
+    },
+    {
+      "name": "deep-research",
+      "description": "Route a research or diagnosis request to the right scenario, drill at least three layers deep, then summarize and verify the conclusion -- including the ten traps that make a half-finished investigation look complete.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/deep-research"
+      ]
     }
   ]
 }

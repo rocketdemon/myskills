@@ -12,6 +12,8 @@ plausible-looking wrong one.
 | Skill | What it does |
 |:--|:--|
 | [`mcp-diagnostics`](skills/mcp-diagnostics/SKILL.md) | Diagnoses MCP servers that run but expose no tools, config changes that never take effect, and tool calls that blow up the context window |
+| [`component-upgrade`](skills/component-upgrade/SKILL.md) | Plans and executes version upgrades of self-hosted components — Docker containers/databases and git-deployed services — with a restore-verified backup, an execution-driven config-migration check, and a tested rollback path |
+| [`deep-research`](skills/deep-research/SKILL.md) | A research and diagnosis protocol: route the request to the right scenario, drill at least three layers deep, then summarize and verify the conclusion — including the ten traps that make a half-finished investigation look complete |
 
 ## Install
 
