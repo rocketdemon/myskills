@@ -14,6 +14,9 @@ plausible-looking wrong one.
 | [`mcp-diagnostics`](skills/mcp-diagnostics/SKILL.md) | Diagnoses MCP servers that run but expose no tools, config changes that never take effect, and tool calls that blow up the context window |
 | [`component-upgrade`](skills/component-upgrade/SKILL.md) | Plans and executes version upgrades of self-hosted components — Docker containers/databases and git-deployed services — with a restore-verified backup, an execution-driven config-migration check, and a tested rollback path |
 | [`deep-research`](skills/deep-research/SKILL.md) | A research and diagnosis protocol: route the request to the right scenario, drill at least three layers deep, then summarize and verify the conclusion — including the ten traps that make a half-finished investigation look complete |
+| [`component-lifecycle`](skills/component-lifecycle/SKILL.md) | Covers the gap after "the component is installed": container and systemd lifecycle, layered fault isolation, multi-point verification, state snapshots, and the integration checklist — plus the cron `no_agent` script-path resolution pitfall and a bottom-up MCP connection diagnostic flow |
+| [`integration-verification`](skills/integration-verification/SKILL.md) | Proves that an integration **actually took effect** instead of looking configured: the three-variable env trap that fails silently, a `preflight` check that passes while the real path is broken, and how a credential display mask written into a config file produces an authentication failure with zero log lines |
+| [`clickhouse-operations`](skills/clickhouse-operations/SKILL.md) | Operating a self-hosted ClickHouse that backs another service: system-log TTL governance where XML config and the engine definition disagree, repairing values in a key column (`INSERT` + `DELETE` + `FINAL`), corrupted-parts triage, backup/restore that is verified rather than assumed, and diagnosing trace timestamps that drift by whole hours |
 
 ## Install
 

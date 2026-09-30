@@ -35,6 +35,33 @@
       "skills": [
         "./skills/deep-research"
       ]
+    },
+    {
+      "name": "component-lifecycle",
+      "description": "The gap after 'the component is installed': container and systemd lifecycle, layered fault isolation, multi-point verification, state snapshots, and the integration checklist -- plus the cron no_agent script-path pitfall.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/component-lifecycle"
+      ]
+    },
+    {
+      "name": "integration-verification",
+      "description": "Prove an integration actually took effect instead of looking configured: the silently-failing three-variable env trap, a preflight check that passes while the real path is broken, and a credential display mask that produces an auth failure with zero logs.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/integration-verification"
+      ]
+    },
+    {
+      "name": "clickhouse-operations",
+      "description": "Operating a self-hosted ClickHouse behind another service: system-log TTL governance when XML config and the engine definition disagree, repairing key-column values, corrupted-parts triage, verified backup/restore, and trace timestamps that drift by whole hours.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/clickhouse-operations"
+      ]
     }
   ]
 }
