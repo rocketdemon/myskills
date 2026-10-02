@@ -131,6 +131,8 @@ The header is written by `_write_stderr_log_header` after the OSV pre-check and 
 3. `env -i PATH=... HOME=... USER=... LANG=... <key> uv run <pkg>` → simulates the gateway's minimal filtered env, proves the filtered env does not break startup
 4. `python tools/mcp_stdio_watchdog.py --ppid $$ -- <full command>` → proves the watchdog wrapper is fine
 
+Attribute the cost to a layer, and A/B a candidate command, with `scripts/probe-mcp-handshake.py <server> --variants` (spawn → `initialize` → `list_tools`, credential argv masked; compare tool counts, not just seconds).
+
 If all of the above pass and it still fails, do not rush to attribute it to "stuck/deadlock". Use **historical successful startup duration** to establish the real cold-start length:
 
 ```bash
@@ -140,7 +142,35 @@ grep -n 'starting MCP server' ~/.hermes/logs/mcp-stderr.log | tail -6
 
 Measured bocha cold start: 18~26s (the bulk is **importing the MCP SDK**, not uv resolution). Compare that against the server's `connect_timeout` (commonly 30s) — headroom is only 4~12s, easily exceeded on a slow network or under concurrency. **The root cause is "slow cold start + too-tight connect_timeout", not "uv hanging".**
 
-**The real fix is raising `connect_timeout`** (30→90; **npx-based servers need ≥120** — measured feishu (`npx -y lark-mcp@latest`, whose cold start must check the network for the latest version) took **69.2s** to connect, leaving only 21s of headroom under its then-90s limit). **Do not change the `.venv` entry point** — that only saves the 1~3s of uv resolution and cannot save the ten-plus seconds of MCP SDK import, so it does not fix the root cause (a `verify-conclusion` recheck overturned that approach). To change config, `write_file` a temporary script and run it with `terminal` (editing config through a heredoc triggers an approval timeout); after the change, verify by reading the field back with `read_file`.
+**Raising `connect_timeout` buys headroom, it is not a fix** (30→90; **npx-based servers need ≥120** — measured feishu taking **69.2s** at cold start under contention, leaving only 21s of headroom against its then-90s limit).
+
+**For `command: npx` servers the structural fix is deleting the fork layer, not the timeout.** Hermes already knows how to skip `npx` and spawn the cached binary directly (`_npx_cached_bin` in `tools/mcp_tool_config.py`), but it refuses that path whenever the spec carries an `@` **after** the package scope — so a spec carrying `@latest`, and an exact version pin, both pay a full `npx` resolution on every spawn. Dropping the tag keeps the semantics identical (`npx pkg` and `npx pkg` with the `latest` tag both resolve the same way) and restores the fast path. Same server, same tool count, three ways:
+
+| spec | handshake |
+|---|---|
+| `@scope/pkg` with the `latest` tag | 26.2s |
+| `@scope/pkg` pinned to an exact version | 25.3s |
+| cached `.bin` direct (tag dropped) | **4.3s** |
+
+Removing the fork layer removes the driver of the Symptom 5 loop, and it removes a resident `npm exec` parent (~79MB measured). The cost win is measured; the loop stopping is the expected consequence and must be **confirmed by observation** (Symptom 5's acceptance criteria), not assumed from the timing alone. **Do not generalize this to `uv run` python servers** — there the entry-point tweak really does save only 1~3s and the SDK import dominates, as a `verify-conclusion` recheck found.
+
+**Editing MCP server config**: use `hermes config set <server>.args.<idx> <value>` — a numeric path segment indexes an **existing** list item (lists are never grown), the write is atomic, exactly one line changes, and the command carries no secret. `patch`/`write_file` on `config.yaml` are refused by the security guard, and a heredoc/`sed` rewrite trips the approval gate. Verify in this order: (a) read the field back, (b) `diff` a pre-change backup against the result to prove nothing else moved, (c) run the **real predicate the runtime will use** (e.g. `_npx_cached_bin(<args read from config>)`) instead of eyeballing the YAML — a syntactically correct value that still misses the fast path looks fixed and is not.
+
+**An edit is not in effect until the entry is re-created.** A running server owns the `command`/`args` it was spawned with, and a transport reconnect (the respawn after the child dies) reuses that **cached** config — a killed server came back minutes after the spec edit still running `npm exec <spec>@latest`. So "wait for the next reconnect" restores the *old* args, and a config file that reads correctly proves nothing about the live process. Read the apply state off the **process tree**: an extra `npm exec` / `sh -c` parent above the real server means the fork layer is still being paid, a direct child of the harness means the fast path is in effect (the `starting MCP server` headers cannot tell these apart). Time the new args with a **fresh-config** spawn in a separate process — `hermes mcp test <server>` or `scripts/probe-mcp-handshake.py --resolved` — which proves the spawn path without waiting on a reconnect, and says nothing about the gateway's tool surface (Symptom 4b). To apply it to a live server, re-create the entry: `/reload-mcp` or a gateway restart.
+
+## Symptom 5: one server restarts in a loop (re-added by the reconciler)
+
+**What you see**: `mcp-stderr.log` shows `starting MCP server 'X'` every couple of minutes, and `agent.log` repeats `MCP servers reconciled with config (default): removed=[] added=['X']` with slowly growing gaps, often next to `MCP: registered 0 tool(s) ... (1 failed: X (CancelledError))`.
+
+**Mechanism**: the housekeeping reconciler re-adds any enabled server that is not live in the registry, on a per-server cooldown ladder (~30s → 600s backoff). A handshake that takes longer than the session that triggered it survives gets cancelled at teardown (`CancelledError`), the server never lands in the registry, and the next reconcile tick tries again. Slow startup is therefore self-reinforcing, and the *slowest* server is the one that looks broken.
+
+**Two rules before blaming a server**:
+1. **The cancels are generic, not server-specific.** In the same window the other stdio servers get `CancelledError` too; only the count differs. Count `starting MCP server '<X>'` for **every** stdio server over the same window and compare before concluding that one of them is broken.
+2. **Fix the startup cost (Symptom 3), not the timeout.** Raising the timeout shortens nothing; it only moves where the cancellation window lands.
+
+**Acceptance criteria after a startup-cost fix** (all three, ≥15 min of observation): new `starting MCP server '<X>'` events stop; `registered N tool(s)` succeeds on the first attempt; `added=['X']` stops appearing. A single successful registration does **not** close it — the loop was skipping successes all along. **Start the clock only after the entry has been re-created** (Symptom 3): a live server keeps its cached args, so watching a server that never picked the fix up proves nothing either way — check the process tree for the fork-layer parent before you start observing.
+
+Counts, log fields, backoff ladder, and the A/B measurement recipe: `references/stdio-startup-cost-and-restart-loops.md`. Time a candidate command directly with `scripts/probe-mcp-handshake.py`.
 
 ## MCP log file map
 
@@ -148,10 +178,10 @@ Measured bocha cold start: 18~26s (the bulk is **importing the MCP SDK**, not uv
 |---|---|---|
 | `~/.hermes/logs/mcp-stderr.log` | stderr of each stdio MCP child, with a `===== starting MCP server 'X' =====` header | **Core**: the header signature tells you whether the child got up |
 | `~/.hermes/logs/errors.log` | WARNING/ERROR, including `Failed to connect to MCP server 'X' (command=...): <err>` | **Core**: the connection-failure type (CancelledError / TimeoutError / ...) |
-| `~/.hermes/logs/gateway.log` | platform connect/disconnect (weixin/feishu connected...) | No MCP discovery logging; grepping for MCP comes up empty |
-| `~/.hermes/logs/agent.log` | agent session loop (API calls, tool calls) | No MCP discovery logging |
+| `~/.hermes/logs/gateway.log` | platform connect/disconnect (weixin/feishu connected...) plus profile-reconcile housekeeping lines | Only the `run_profile_reconcile` wrapper line; the MCP-level re-add events are in agent.log |
+| `~/.hermes/logs/agent.log` | agent session loop (API calls, tool calls) **plus `tools.mcp_tool` records** | **Core for restart loops**: `MCP: registered N tool(s) ... (M failed: X (CancelledError))`, `Failed to connect to MCP server 'X' (command=npx): ...`, `MCP servers reconciled with config (<profile>): removed=[...] added=[...]` |
 
-MCP discovery details live only in mcp-stderr.log + errors.log. Do not go looking in gateway.log / agent.log.
+`mcp-stderr.log` answers "did the child get up"; `agent.log` answers "did the **registry** accept it, and who keeps re-adding it". Read both — the start header alone cannot tell a healthy connect from one cancelled before registration, because both leave the same header.
 
 ## Pitfalls
 
@@ -163,3 +193,5 @@ MCP discovery details live only in mcp-stderr.log + errors.log. Do not go lookin
 - **`bocha_ai_search` reporting `Unexpected error: 'datePublished'` is a server-side bug** (its server.py parses the ai-search response and force-reads a `datePublished` field; ai-search and web-search return different structures, so the missing field raises KeyError). **Workaround: use `bocha_web_search`** — semantically close, and web_search is usually sufficient. Do not treat it as "bocha is entirely broken" — only the ai_search endpoint has this field problem.
 - **A failed first connectivity round does not mean broken; retest once before concluding.** Measured after an upgrade: one round of `hermes mcp test` showed **3/5 timeouts** (metaso 30s / feishu 90s / zhipu 30s), and the **retest passed everything** (metaso 13.2s / feishu 69.2s / zhipu 9.8s / bocha 8.3s / jike 6.5s) — the first round is cold start, the second is steady state. Misjudging this step sends you off to change things that were never broken.
 - **Evidence for "the tool surface is missing X" must come from the gateway side (process + mcp-stderr.log + gateway PID), never from the tool list in your own context** — that is a snapshot from context build time and may predate the fix you just made. Conversely, `pgrep` finding no process + no `starting MCP server` event in the log is what "it really did not come up" looks like.
+- **Never print a full process command line when the server takes credentials as flags.** `ps -eo cmd`, `pgrep -af`, and `docker inspect`-style dumps publish `-s`/`--token`-style secrets into your output and into the transcript — that is a credential-leak incident, not a diagnostic. Mask every value that follows a credential-ish flag (or a `key=…` pair) before printing, and prefer passing the secret through the harness's own plumbing over a command-line flag when the server supports it. A timing probe is worth nothing if running it leaks the key.
+- **A pre-existing `fix-<server>.sh` may implement an approach that history already refuted.** Read it before running it, and check the version/tag it pins against the project's own record. A version pin is doubly harmful on this class of server: it can pin a build with a known bug, **and** (Symptom 3) it disables the cached-bin fast path. Finding a script for the exact symptom is not evidence that its approach is correct.
