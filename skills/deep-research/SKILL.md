@@ -73,7 +73,7 @@ Based on the components involved, pick the best-matching skill from the mapping 
 |---------|-----------|
 | Docker container lifecycle, start/stop, shutdown | a host-management checklist |
 | ClickHouse faults, TTL, partitions, merges | a ClickHouse-operations checklist |
-| MCP connections, tool-call failures | load the domain skill for that MCP, or search the local skills tree under `~/.myapp/skills/mcp/` for an MCP-related skill |
+| MCP connections, tool-call failures | load the domain skill for that MCP, or search the local skills tree under `~/.hermes/skills/mcp/` for an MCP-related skill |
 | The app/platform's own behavior | the platform's own agent skill |
 | Python code bugs, logic errors | a systematic-debugging skill |
 | Whole-infrastructure questions | an infrastructure-check checklist |
