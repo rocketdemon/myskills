@@ -1,9 +1,10 @@
 # Case Study: ClickHouse 26.5.1 → 26.7.1 Upgrade
 
-> Anonymized. ClickHouse is the component being upgraded (a public product, kept
-> as-is). The application that depends on ClickHouse, together with its compose
-> services, container, and data volume, is referred to as *the dependent app*
-> (`APP_SERVICE_WEB` / `APP_SERVICE_WORKER`, `CONTAINER_NAME`, `VOLUME_PATH`).
+> Product names are kept as-is: ClickHouse is the component being upgraded and
+> **Langfuse** is the application that depends on it — both are public products, and the
+> method is only readable if you know what is being upgraded. What stays masked is this
+> deployment's own shape: the compose stack directory (`APP_DIR`), the ClickHouse
+> container (`CONTAINER_NAME`) and its data volume (`VOLUME_PATH`).
 >
 > Provenance: recorded from a real single-node upgrade. The conclusion passed two
 > rounds of independent verification plus an adversarial re-check before it was
@@ -17,9 +18,9 @@
 | Current version | 26.5.1 (build 882) |
 | Target version | 26.7.1 |
 | Topology | Single node, embedded Keeper (not a ZooKeeper cluster); Keeper listens on port 9181 |
-| Table engine | `ReplicatedReplacingMergeTree` (the `ReplicatedMergeTree` family; the dependent app's default), but only **one** replica |
+| Table engine | `ReplicatedReplacingMergeTree` (the `ReplicatedMergeTree` family; Langfuse v3's default), but only **one** replica |
 | Data size | ~31 MB across 12 tables in the `default` database (`observations` ~27 MB, `traces` ~3 MB, plus the rest) |
-| Dependent app | The dependent app (self-hosted v3) requires ClickHouse ≥24.3 with no upper bound; runs as two compose services (`APP_SERVICE_WEB`, `APP_SERVICE_WORKER`), each gated on `condition: service_healthy` |
+| Application | Langfuse (self-hosted v3) requires ClickHouse ≥24.3 with no upper bound; runs as two compose services (`langfuse-web`, `langfuse-worker`), each gated on `condition: service_healthy` |
 | Custom config | `clickhouse-system-ttl.xml` (14-day TTL on system logs, 6 tables) and `clickhouse-keeper.xml` (Keeper port 9181) |
 | Image registry | `daemon.json` configures 4 registry mirrors; image pulls can be slow/unreliable, so budget for them |
 | Downtime window | ~2–3 minutes |
@@ -32,10 +33,10 @@
 | 26.7 | 117 | — | Query optimization, memory management ("massive summer release") |
 | **Total** | **~200** | **~600** | |
 
-This upgrade indirectly mitigates merge storms; the root fix only comes with the
-dependent app v4's immutable wide-table model.
+This upgrade indirectly mitigates merge storms; the root fix only comes with
+Langfuse v4's immutable wide-table model.
 
-Additional benefit: it satisfies the dependent app v4's prerequisite (minimum
+Additional benefit: it satisfies Langfuse v4's prerequisite (minimum
 ClickHouse ≥25.12, recommended ≥26.4).
 
 ## 3. Breaking-change audit
@@ -44,9 +45,9 @@ Backward-incompatible changes across 26.5 → 26.7:
 
 | Version | Backward-incompatible change | Affects us? |
 |---------|------------------------------|:---:|
-| 26.6 | S3 credential auto-resolution removed (the server no longer resolves its own cloud credentials from the S3 URL) | No — object-store credentials are supplied through the dependent app, not auto-resolved by the server |
+| 26.6 | S3 credential auto-resolution removed (the server no longer resolves its own cloud credentials from the S3 URL) | No — object-store credentials are supplied through Langfuse, not auto-resolved by the server |
 | 26.6 | `allow_experimental_query_deduplication` removed | No |
-| 26.6 | Query-formatting alias-substitution inconsistency fixed | No — display-only change; the dependent app generates its own SQL |
+| 26.6 | Query-formatting alias-substitution inconsistency fixed | No — display-only change; Langfuse generates its own SQL |
 | 26.6 | `mergeTreeAnalyzeIndexes` parameter changed to an array | No |
 | 26.7 | No key breaking change | — |
 
@@ -86,9 +87,9 @@ docker pull clickhouse/clickhouse-server:26.7.1
 sudo tar -czf /tmp/clickhouse_backup_$(date +%Y%m%d).tar.gz \
   -C /var/lib/docker/volumes/VOLUME_PATH/_data .
 
-# 3. Stop the dependent app first
+# 3. Stop Langfuse first
 #    (otherwise it logs write errors while ClickHouse is unavailable)
-docker compose stop APP_SERVICE_WEB APP_SERVICE_WORKER
+docker compose stop langfuse-web langfuse-worker
 
 # 4. Stop ClickHouse
 docker compose stop clickhouse
@@ -121,11 +122,11 @@ docker exec CONTAINER_NAME clickhouse-client \
 # 9. Watch the logs for ~2 minutes (specifically for Keeper CORRUPTED_DATA)
 docker logs --tail 50 CONTAINER_NAME
 
-# 10. Restart the dependent app
-docker compose up -d APP_SERVICE_WEB APP_SERVICE_WORKER
+# 10. Restart Langfuse
+docker compose up -d langfuse-web langfuse-worker
 
-# 11. Verify the dependent app
-curl -s http://APP_HOST:APP_PORT/api/health      # expect HTTP 200
+# 11. Verify Langfuse
+curl -s http://APP_HOST:APP_PORT/api/public/health      # expect HTTP 200
 ```
 
 ## 6. Verification checklist
@@ -135,25 +136,25 @@ curl -s http://APP_HOST:APP_PORT/api/health      # expect HTTP 200
 - [ ] `traces` row count = 842
 - [ ] Background merges report no `CORRUPTED_DATA` errors
 - [ ] Container logs free of `ERROR` (after observing for 2 minutes)
-- [ ] The dependent app's health endpoint returns HTTP 200
+- [ ] Langfuse UI `/api/public/health` returns HTTP 200
 
 ## 7. Rollback
 
 ```bash
 cd "$APP_DIR"
-docker compose stop APP_SERVICE_WEB APP_SERVICE_WORKER clickhouse
+docker compose stop langfuse-web langfuse-worker clickhouse
 
 sudo rm -rf /var/lib/docker/volumes/VOLUME_PATH/_data/*
 sudo tar -xzf /tmp/clickhouse_backup_YYYYMMDD.tar.gz \
   -C /var/lib/docker/volumes/VOLUME_PATH/_data/
 
 sed -i 's|image: clickhouse/clickhouse-server:26.7.1|image: clickhouse/clickhouse-server:latest|' docker-compose.yml
-docker compose up -d clickhouse APP_SERVICE_WEB APP_SERVICE_WORKER
+docker compose up -d clickhouse langfuse-web langfuse-worker
 ```
 
 ## 8. Post-upgrade compatibility and the next major version
 
-Upgrading to 26.7 satisfies the dependent app v4's minimum requirement
+Upgrading to 26.7 satisfies Langfuse v4's minimum requirement
 (≥25.12, ≥26.4 recommended).
 
 Key points for the eventual v4 migration:

@@ -80,7 +80,7 @@ Based on the components involved, pick the best-matching skill from the mapping 
 | Component upgrade/install | a component-lifecycle or component-upgrade assessment skill |
 | Feishu (Lark) data operations | a Feishu Bitable inventory skill |
 | Feishu MCP/bitable errors | a Feishu MCP/Bitable pitfalls reference (69 known traps) |
-| SERVICE_NAME API faults | a host-management checklist |
+| Honcho API faults | a host-management checklist |
 | Network/connection/DNS | a host-management checklist (network-resilience section) |
 
 **If no skill matches**: mark it "no domain skill — research with generic methods" and go straight to A.2.
