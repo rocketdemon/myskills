@@ -71,6 +71,15 @@
       "skills": [
         "./skills/verify-conclusion"
       ]
+    },
+    {
+      "name": "browser-site-driving",
+      "description": "Drive a real website with a browser when the page fights back: WSL headless-Chromium setup, the desktop-UA disguise that defeats a mobile-only interception page, DOM forensics instead of screenshots, static SPA-bundle reconnaissance before login, proving login persistence from the cookie database, and a plan/execute/re-check loop for reproducing an object on a platform whose UI offers no clone feature.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/browser-site-driving"
+      ]
     }
   ]
 }
