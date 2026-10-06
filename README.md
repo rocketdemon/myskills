@@ -17,6 +17,7 @@ plausible-looking wrong one.
 | [`component-lifecycle`](skills/component-lifecycle/SKILL.md) | Covers the gap after "the component is installed": container and systemd lifecycle, layered fault isolation, multi-point verification, state snapshots, and the integration checklist — plus the cron `no_agent` script-path resolution pitfall and a bottom-up MCP connection diagnostic flow |
 | [`integration-verification`](skills/integration-verification/SKILL.md) | Proves that an integration **actually took effect** instead of looking configured: the three-variable env trap that fails silently, a `preflight` check that passes while the real path is broken, and how a credential display mask written into a config file produces an authentication failure with zero log lines |
 | [`clickhouse-operations`](skills/clickhouse-operations/SKILL.md) | Operating a self-hosted ClickHouse that backs another service: system-log TTL governance where XML config and the engine definition disagree, repairing values in a key column (`INSERT` + `DELETE` + `FINAL`), corrupted-parts triage, backup/restore that is verified rather than assumed, and diagnosing trace timestamps that drift by whole hours |
+| [`verify-conclusion`](skills/verify-conclusion/SKILL.md) | Stress-tests a diagnostic conclusion before it is acted on: classify every link as fact, assumption, or inference, then blind re-derive with a different reasoning strategy — plus fifteen real traps, from temporal correlation mistaken for causation to declaring a root cause on the first bug |
 
 ## Install
 
