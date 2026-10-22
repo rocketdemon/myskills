@@ -80,6 +80,15 @@
       "skills": [
         "./skills/browser-site-driving"
       ]
+    },
+    {
+      "name": "agent-self-reflection",
+      "description": "Turns a day of an agent's own conversations into a self-review report -- corrections the user made, completion claims that were never actually verified, repeated demands for evidence, complaints, manual fixes, and repeat failures -- with every check printing what it scanned, so a clean report cannot hide an unscanned window. Consumes a portable JSONL contract instead of any framework's database.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/agent-self-reflection"
+      ]
     }
   ]
 }

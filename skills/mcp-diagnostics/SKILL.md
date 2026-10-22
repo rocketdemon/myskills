@@ -186,6 +186,19 @@ Counts, log fields, backoff ladder, and the A/B measurement recipe: `references/
 
 `mcp-stderr.log` answers "did the child get up"; `agent.log` answers "did the **registry** accept it, and who keeps re-adding it". Read both — the start header alone cannot tell a healthy connect from one cancelled before registration, because both leave the same header.
 
+## Transport matrix: the same handshake over stdio / SSE / streamable HTTP
+
+`list_tools()` against a live server is the cheapest functional check available: it proves the protocol
+answers and lists the exposed tools **without executing a search**, so it costs no API quota — the way to
+separate "the process is alive" from "the tool is usable". Call shapes for all three transports, the
+mcp 2.0.0 API changes (`streamablehttp_client` removed; headers must be injected with an
+`httpx2.AsyncClient`), per-item timeout budgets and the masking rules for the probe's own output are in
+`references/transport-handshake-matrix.md`. Keep it distinct from a paid retrieval check, and never
+report "the process is alive" as "the tool works". That reference also carries the **two-tier
+reporting rules** (liveness and availability as separate lines, `UNTESTED`/coverage caveats for a
+check that could not run), the **minimum-parameter table for the paid call** on each server, and the
+reusable artifacts (`~/.hermes/scripts/mcp-func-check.py` plus its bidirectional suite).
+
 ## Pitfalls
 
 - **A live process does not mean the tool registered.** After the stdio connection breaks, the server becomes an orphan and keeps running; you must judge by PPID/cgroup, not by `pgrep` finding a process.
@@ -199,3 +212,4 @@ Counts, log fields, backoff ladder, and the A/B measurement recipe: `references/
 - **Never print a full process command line when the server takes credentials as flags.** `ps -eo cmd`, `pgrep -af`, and `docker inspect`-style dumps publish `-s`/`--token`-style secrets into your output and into the transcript — that is a credential-leak incident, not a diagnostic. Mask every value that follows a credential-ish flag (or a `key=…` pair) before printing, and prefer passing the secret through the harness's own plumbing over a command-line flag when the server supports it. A timing probe is worth nothing if running it leaks the key. **A mask written for one shape passes the others**: a substitution aimed at `key: value` leaves YAML list items (`- value`) and bare argv tokens fully visible, so a "masked" dump of `config.yaml` or of a process list can still publish the secret. Print **keys, line numbers and counts** instead of values; when a value must be shown, mask it per shape; and for a "where else does this value live" sweep use file names and counts only (`grep -rlF` / `grep -rcF`), never matching lines. When it does leak, say so in the report — the alternative is a report that teaches the next session the wrong mask.
 - **A pre-existing `fix-<server>.sh` may implement an approach that history already refuted.** Read it before running it, and check the version/tag it pins against the project's own record. A version pin is doubly harmful on this class of server: it can pin a build with a known bug, **and** (Symptom 3) it disables the cached-bin fast path. Finding a script for the exact symptom is not evidence that its approach is correct.
 - **`hermes mcp test <server>` prints `Transport: stdio → npx` even when the spawn skipped the fork layer.** That line reports the **configured** command, not the **resolved** one, so it is not evidence that the fix failed — do not "fix" it a second time off that label. The fast path is judged by handshake duration and tool count (a fork-layer spawn costs tens of seconds, the cached binary single digits) and by the process tree above the server.
+- **`tool_call` batches only connector tools — every local MCP call needs its own invocation.** Putting two local MCP entries in one `calls` array is rejected outright (`tool_call takes exactly one entry for local tools`), so "run the same probe through two search engines / two servers" is **two** `tool_call` calls (they may still be issued in the same turn, for parallelism), never one batch. Read the error text before rewriting the arguments — it names the exact retry shape.

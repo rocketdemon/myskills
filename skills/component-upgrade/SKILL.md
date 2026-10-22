@@ -570,6 +570,11 @@ No jumping to conclusions: every claim needs physical evidence — a changelog l
 - `references/backup-and-restore-verification.md` — the three backup rules, packaging from `dist-info/RECORD`,
   the verification trio including the negative test, the four restore-script traps, and offline
   reinstallability.
+- `references/goal-driven-upgrade-evaluation.md` — how to answer "**will upgrading deliver objective X?**":
+  verdict-first reporting, changelog "version → line number" attribution (deciding whether the optimisation
+  you want is already in your local version), the three-way entry classification (saves / neutral /
+  **costs more**), the cost list of the upgrade itself, and the three-source cross-check for
+  "`git fetch` not erroring ≠ the ref is current".
 
 ### Scripts
 

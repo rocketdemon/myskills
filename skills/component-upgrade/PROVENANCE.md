@@ -15,6 +15,7 @@ published, and the private tree keeps evolving independently.
 | `SKILL.md` | `component-upgrade-assessment/SKILL.md` | translated to English + de-proprietarised (harness-specific paths, commands and vendor names replaced with the generic equivalent); section numbering normalised |
 | `references/case-study-clickhouse-upgrade.md` | `component-upgrade-assessment/references/clickhouse-upgrade-case.md` **and** `infrastructure-upgrade/references/clickhouse-26.5-to-26.7-upgrade-plan.md` | **genericised (host artifacts only) + expanded — a two-source synthesis** (see §3) |
 | `references/platform-self-upgrade-mechanics.md` | `component-upgrade-assessment/references/host-update-execution-mechanics.md` | renamed at publication (the private name is host-specific); de-proprietarised |
+| `references/goal-driven-upgrade-evaluation.md` | `component-upgrade-assessment/references/goal-driven-upgrade-evaluation.md` | translated to English (no host-specific content to strip; same file name on both sides) |
 | `scripts/probe-config-migration-survival.py` | `component-upgrade-assessment/scripts/probe-config-migration-preset-survival.py` | renamed at publication |
 | `scripts/recon-upgrade-surface.sh` | `component-upgrade-assessment/scripts/probe-host-upgrade-surface.sh` | renamed at publication |
 
