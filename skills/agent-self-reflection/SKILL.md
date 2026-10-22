@@ -1,7 +1,7 @@
 ---
 name: agent-self-reflection
 description: Use when asked for a daily or turn-level self-review of the agent's own conversations. Turns exported session JSONL into a signal report (corrections, false-success claims, verification demands, complaints, manual fixes, repeat failures) with explicit coverage caveats.
-version: 0.1.0
+version: 1.0.0
 author: "rocketdemon"
 license: MIT
 metadata:
