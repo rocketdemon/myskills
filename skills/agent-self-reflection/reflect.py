@@ -17,7 +17,7 @@
   · 记忆缺口对账（需要记忆后端，见 --memory-file）
 
 用法：
-  python3 explore.py --messages messages.jsonl --sessions sessions.jsonl \
+  python3 reflect.py --messages messages.jsonl --sessions sessions.jsonl \
       [--since 2026-10-11T00:00:00] [--label 10-11起] [--memory-file MEMORY.md]
 """
 import argparse
@@ -1497,7 +1497,7 @@ else:
         print(f"     • {datetime.fromtimestamp(_t8, tz):%m-%d %H:%M:%S} "
               f"[{(_sid8 or '')[:16]}] {_head8}")
     if _hole_n > 5:
-        print(f"     … 另 {_hole_n - 5} 条（历史全量清单：scripts/reflection-scan-holes.py）")
+        print(f"     … 另 {_hole_n - 5} 条（未逐条列出；此处只汇总前 5 条）")
     SCAN_HOLE_MSGS = bool(_hole_n)
 
 

@@ -85,7 +85,7 @@ r = run()
 out = r.stdout + r.stderr
 if r.returncode != 0:
     print(out[-3000:])
-    sys.exit(f"❌ explore.py 退出码 {r.returncode}")
+    sys.exit(f"❌ reflect.py 退出码 {r.returncode}")
 
 tot = re.search(r"总计: (\d+) 纠正 \+ (\d+) 虚假声称 \+ (\d+) 手动介入", out)
 if not tot:
@@ -109,7 +109,7 @@ check("评级行必须出现", "评级:" in out, "")
 check("不得出现「未送达」计数（本版不适用）",
       "未送达条数：本版不适用" in out, "")
 
-print("=== explore.py 自检 ===")
+print("=== reflect.py 自检 ===")
 ok = 0
 for name, cond, detail in CHECKS:
     print(f"  {'✅' if cond else '❌'} {name}" + (f"  [{detail}]" if detail and not cond else ""))
