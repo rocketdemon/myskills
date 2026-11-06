@@ -65,7 +65,7 @@
     },
     {
       "name": "verify-conclusion",
-      "description": "Stress-test a diagnostic conclusion before acting on it: classify every link as fact, assumption, or inference, blind re-derive with a different reasoning strategy, and catch the fifteen real traps that make a plausible conclusion wrong.",
+      "description": "Stress-test a diagnostic conclusion before acting on it: classify every link as fact, assumption, or inference, blind re-derive with a different reasoning strategy, and catch the twenty-seven real traps that make a plausible conclusion wrong.",
       "source": "./",
       "strict": false,
       "skills": [
