@@ -1,7 +1,7 @@
 ---
 name: verify-conclusion
 description: Use when the agent has just produced a diagnostic conclusion, research finding, or any inference from collected evidence. Systematically stress-tests the reasoning chain and re-derives from scratch to catch premature conclusions, unverified assumptions, and causal fallacies.
-version: 1.2.0
+version: 1.2.1
 author: "rocketdemon"
 license: MIT
 trigger: Fires immediately after producing a diagnostic conclusion, research finding, or any inference from collected evidence. Also fires when the user says `确认吗`, `再验一下`, `复查`, `肯定吗`, `你验证了吗`.
@@ -29,6 +29,10 @@ LLM agents are prone to declaring conclusions from incomplete evidence — confu
   bundled). Everything else is harness-agnostic.
 - **Trigger phrases are kept verbatim in Chinese** (`确认吗`, `再验一下`, …) because they are
   what the user actually types; translating them would break the trigger.
+- **Read-only unless a repair is explicitly approved.** The skill itself never executes
+  anything. When a conclusion implies a repair, only state-*preserving* probes are allowed;
+  anything that changes state (delete, service reload/restart, `VACUUM`, config change) needs
+  the user's explicit approval first. Trap ⑨ is constrained the same way.
 
 ## When to Use
 
@@ -68,7 +72,9 @@ Then ask:
 2. **Upstream check:** For every cause identified, ask: what caused THAT? Stop only when reaching a system boundary or already-known factor.
 3. **Verifiability check:** For every diagnostic claim, ask: "What command would prove this wrong?" If no such command exists, the claim is unfalsifiable — flag as weak.
 4. **Completeness check:** Were any clues seen but not incorporated? Were any investigative steps skipped?
-5. **Fix feasibility check:** Does the diagnosis imply a repair action (ALTER TABLE, config change, etc.)? If yes, run the most lightweight validation that confirms the fix can be applied before declaring the diagnosis complete. A diagnosis whose repair path is blocked is an incomplete diagnosis — flag it and identify the blocker. Examples: before declaring "add TTL" as the fix, run ALTER TABLE with a low-timeout dry-run; before declaring "restart service X" as the fix, check that the service can respond to SIGTERM. Do NOT defer this check to the implementation phase — a fix that can't be applied invalidates or constrains the diagnosis.
+5. **Fix feasibility check:** Does the diagnosis imply a repair action (ALTER TABLE, config change, etc.)? If yes, run the most lightweight validation that confirms the fix can be applied before declaring the diagnosis complete. **The probe must not change state.** If the only available probe would itself perform the
+repair (a real `ALTER TABLE`, a service restart, a `VACUUM`, a delete), stop and ask for
+approval first — a feasibility check that performs the repair is no longer a check. A diagnosis whose repair path is blocked is an incomplete diagnosis — flag it and identify the blocker. Examples: before declaring "add TTL" as the fix, run ALTER TABLE with a low-timeout dry-run; before declaring "restart service X" as the fix, check that the service can respond to SIGTERM. Do NOT defer this check to the implementation phase — a fix that can't be applied invalidates or constrains the diagnosis.
 
 Output: either "No weaknesses found" with a specific defense of each link, or a numbered list of weaknesses.
 
@@ -136,6 +142,8 @@ Derived from real agent errors in this environment:
 
 **Fix:** Every diagnostic claim must be answerable with "What command verifies this?" If no single command can verify it, either break it into verifiable sub-claims or label it "speculation".
 
+**Same burden for soothing negative guarantees.** "These few calls won't make anything worse", "this can't touch production", "nothing else reads that file" are claims, not courtesies. The *absence* of a side effect needs the same evidence as its presence: name the mechanism that would have produced it (rate accounting, cooldown state, lock ownership, reader list) or say "未验证". A reassurance the user then acts on converts your guess into their decision — and the later contradicting observation reads as a broken promise instead of a normal unknown, which costs more trust than admitting the gap up front.
+
 ### ④ Reflexive attribution to recent changes
 
 **Pattern:** Any recent config change, upgrade, or modification is reflexively blamed for any new symptom. The upgrade WAS the most recent change, but that doesn't make it the cause.
@@ -144,9 +152,9 @@ Derived from real agent errors in this environment:
 
 ### ⑤ Intermediate state reported as final conclusion
 
-**Pattern:** A transcript-search DISCOVERY result shows "X is pending" in the middle of a session, but the same session's bookend_end resolved it. Agent reports the pending state without checking the end.
+**Pattern:** A session_search DISCOVERY result shows "X is pending" in the middle of a session, but the same session's bookend_end resolved it. Agent reports the pending state without checking the end.
 
-**Fix:** After any lookup (especially a search that returns partial, paginated, or time-sliced results), always check whether the same source later updated or invalidated the finding.
+**Fix:** After any lookup (especially session_search), always check whether the same source later updated or invalidated the finding.
 
 ### ⑥ Apologize first, investigate later
 
@@ -195,7 +203,7 @@ Derived from real agent errors in this environment:
 
 **Fix:** Any file-existence check that relies on `sudo` must first be redone with a tool that needs no sudo — `ls -la` or `stat`. File existence (an inode property) and file readability (a permission property) are **two independent propositions**; conflating them produces catastrophic misjudgments.
 
-**Real case (2026-07-27):** Agent asserted `/etc/sudoers.d/hermes-journal` had been deleted → inferred "the Phase 4 fix never ran" → after the user challenged it, re-inspection showed `ls -la /etc/sudoers.d/` listing the file all along, and `sudo -n journalctl --flush` returning 0. The root cause was not a missing file but the permission-limited `sudo cat`.
+**Real case (2026-07-27):** Agent asserted `/etc/sudoers.d/<name>` had been deleted → inferred "the Phase 4 fix never ran" → after the user challenged it, re-inspection showed `ls -la /etc/sudoers.d/` listing the file all along, and `sudo -n journalctl --flush` returning 0. The root cause was not a missing file but the permission-limited `sudo cat`.
 
 ### ⑫ Tool output treated as a logical assertion (the `|| echo` anti-pattern)
 
@@ -298,7 +306,7 @@ An anomaly is either pre-existing stock (already there before the window) or new
 **c) Negative claims carry the same evidence burden as positive ones.**
 "Why we must not do Y" is a claim; unverified it hardens into a permanent false constraint. Two prohibitions that each collapsed under a single query: "deleting rows would desync the search index" (the table had insert/delete/update triggers — it would have stayed in sync); "VACUUM needs an equal amount of free space" (hundreds of GB free; the real cost was an exclusive lock, not space). Verify the mechanism behind a prohibition exactly like a proposed fix; if it fails, keep the recommendation only if a *different* verified reason supports it — and say which reason survived.
 
-**Domain note:** for byte/disk-size anomalies the concrete attribution recipe (per-object deltas, index amplification factor, reconciliation across independent measures) is not bundled here — it is a companion write-up, not a requirement of this skill. The mechanism above stands on its own; treat the recipe as an optional next step.
+**Domain note:** for byte/disk-size anomalies the concrete attribution recipe (per-object deltas, index amplification factor, reconciliation across independent measures) lives in the `host-management` skill (its SQLite state.db monitoring reference).
 
 ### ⑱ A skipped assertion reads exactly like a passing one — prove the exercised branch fired
 
@@ -413,7 +421,7 @@ branch holds the switch, the export dialog has its own granularity control.
 **Fix — exercise the option surface before any "cannot" claim:**
 1. Open the range/period/step selector and try the **extreme** admissible setting (single day, single hour, one
    row) rather than only the presets.
-2. Open every `高级` / `更多` / `自定义` branch of the same control and of the export/save dialog.
+2. Open every "高级 / 更多 / 自定义" branch of the same control and of the export/save dialog.
 3. Only if the finest admissible selection still returns coarse data may you state the ceiling — and say which
    option you tried, so the user can correct the path instead of just the conclusion.
 
@@ -548,6 +556,67 @@ it carries.
 **Test:** "for each factor, which command produced this number?" Any factor with no answer is an assumption, and
 it drags the whole product down to an assumption.
 
+### ㉘ Proving a parameter took effect: compare identity, not a payload hash
+
+**Pattern:** to test whether `&start=3` / `page=2` is honoured, hash the whole response and compare
+hashes across variants. Three variants → three different hashes → "the parameter works". Reversing to
+`feedbackUser.userId` + body text showed the same three records in the same order for every variant:
+the parameter was being ignored. The hash differed because each item carried per-request volatile
+fields (`preloadTime`, timestamps, request hints).
+
+**Mechanism:** a whole-payload digest is sensitive to every field, including the ones the server
+rewrites on each call, so it is **almost never equal** — which makes "params ignored" and "params
+worked" produce the same observation ("hashes differ"). A test whose output is invariant across both
+states of the claim is not evidence (see ㉑'s probe corollary).
+
+**Fix:**
+1. Pick **stable identity fields** (primary key, author id + timestamp, item URL) and compare the
+   returned **sets/sequences**, not digests. Report the identity list beside each variant's verdict.
+2. When a cursor field is present (`startIndex` / `nextStartIndex` / `hasMore`), read it too — but a
+   cursor that stays at 0 is weak evidence on its own; the identity comparison is the decisive one.
+3. A count read off the DOM or an API payload is a count of *nodes*, not of *records*. Dedupe by
+   stable identity before writing "N items loaded" — container + inner-component selectors match the
+   same record twice, so "3 → 6 after clicking" can mean nothing was loaded at all.
+
+**Sibling shape — 200 with an empty payload is usually a block, not an absence.** Same schema, same
+key count, no error message, but the payload collapses (observed: 72,701 → 1,505 bytes, `list: []`).
+Before reporting "there is no data": compare `size` and key count against the last good response, and
+state which of the two you are looking at. A silent throttle read as "empty" is how a soft block gets
+reported as a negative finding.
+
+### ㉙ Reviewing a plan or a prior claim: count, carrier, and declaration traps
+
+**a) A count inside a plan is itself a claim — re-count it, and settle the UNIT first.**
+A proposal phrased "generalize the 3 hardcoded paths" carries two assertions: the number, and the population it
+counts. Grep the real file (`grep -n '<pattern>' <file>`) and print the enumeration, not the total. Observed: the
+"3 places" were 1 place in the file plus 2 lines that merely contained the word (one already generic, one with no
+path at all); "3" only became true when the unit was read as "3 copies × 1 place each". Different unit ⇒ different
+files, different edits, different acceptance test. Restate count + unit + enumeration before touching anything.
+
+**b) To decide "did this tool already check X?", grep the SOURCE — never one run's result file.**
+A result file is one run's output, and a sibling probe's output says nothing about this probe. Observed: grepping the
+second probe's result for a config key returned zero hits → "it never checked that" was reported to the user; the
+first probe's source queried exactly that key and its result file had recorded the value. That is a **false
+correction**, which costs as much trust as a false conclusion. Find the reporter's code (`grep -n '<key>|reg
+query|Get-ItemProperty|Get-CimInstance' <script>`), then read its output.
+
+**c) Before adding a restrictive declaration to a document, grep the body for instructions that contradict it.**
+Appending "read-only checks only" to a skill whose body already requires running a minimal repair probe (a dry-run
+`ALTER TABLE`, a SIGTERM reachability test) makes the document argue with itself, and the reader follows whichever
+line they hit first. Either narrow the body (only state-preserving probes may run) or word the declaration to match
+it ("state-changing operations require explicit user approval"). Verify by grepping the same file for the forbidden
+verbs before and after the edit.
+
+**d) Existence is not a path-test question for a file that is exclusively held.**
+`Test-Path 'C:\pagefile.sys'` returns False while the file is present at full size — the memory manager holds it
+open. Same family as ⑪: the probe reports the access result, not the inode. Decide existence with a directory
+listing (`dir /a-d /a`, `ls -la <dir>`) and print the matched line with its size.
+
+**e) A status field is only interpretable when its recorder was enabled.**
+`BugcheckCode = 0` alongside `LogEvent = 0` and dumps disabled cannot distinguish "no crash occurred" from "a crash
+occurred and nothing was written". Read the recorder's own switches first, then either state the weaker claim ("no
+crash was *recorded*") or leave it unknown — never "confirmed there was none".
+
 ## Verification Checklist
 
 - [ ] Every link in the reasoning chain has a type (fact/assumption/inference) and source
@@ -584,7 +653,19 @@ it drags the whole product down to an assumption.
       is assumed
 - [ ] Every propagated change names the **driver** of each term it touches; terms whose driver is not the thing
       being changed were held constant rather than perturbed by the same percentage
+- [ ] Every "this parameter is / is not honoured" claim compared **stable identity** across variants
+      (not whole-payload hashes, which differ on every call because of volatile fields), and any count
+      quoted as "N items" was deduped by identity first (nested wrapper nodes double-count)
+- [ ] Every "there is no data" claim was checked against a size/key-count delta versus the last good
+      response, so a 200-with-empty-payload throttle is not reported as an empty result
 - [ ] Where the data carries a **redundant encoding** of the classification you applied (a price tier that implies
       peak/off-peak, a status field that implies success, an index that implies ordering), your rule-derived split was
       cross-checked against it and matched to the unit — agreement validates the classifier for free, and a mismatch
       exposes it before the finding goes out
+- [ ] Every count quoted from a plan or an earlier claim was re-derived by grep and printed with its **unit and
+      enumeration** (file:line), not accepted as given
+- [ ] A "this script/tool never checked X" claim was grounded in the script's **source**, not in one run's result file
+- [ ] Any restrictive declaration added to a document was cross-checked against instructions in the same document
+      that demand the opposite action — body and declaration edited together or not at all
+- [ ] File existence was decided by a **directory listing**, not a path test, for files that may be exclusively held open
+- [ ] Any status field used as evidence was first validated against the switches of the recorder that writes it
