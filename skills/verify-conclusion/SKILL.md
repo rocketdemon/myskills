@@ -73,8 +73,7 @@ Then ask:
 3. **Verifiability check:** For every diagnostic claim, ask: "What command would prove this wrong?" If no such command exists, the claim is unfalsifiable — flag as weak.
 4. **Completeness check:** Were any clues seen but not incorporated? Were any investigative steps skipped?
 5. **Fix feasibility check:** Does the diagnosis imply a repair action (ALTER TABLE, config change, etc.)? If yes, run the most lightweight validation that confirms the fix can be applied before declaring the diagnosis complete. **The probe must not change state.** If the only available probe would itself perform the
-repair (a real `ALTER TABLE`, a service restart, a `VACUUM`, a delete), stop and ask for
-approval first — a feasibility check that performs the repair is no longer a check. A diagnosis whose repair path is blocked is an incomplete diagnosis — flag it and identify the blocker. Examples: before declaring "add TTL" as the fix, run ALTER TABLE with a low-timeout dry-run; before declaring "restart service X" as the fix, check that the service can respond to SIGTERM. Do NOT defer this check to the implementation phase — a fix that can't be applied invalidates or constrains the diagnosis.
+repair (a real `ALTER TABLE`, a service restart, a `VACUUM`, a delete), stop and ask for approval first — a feasibility check that performs the repair is no longer a check. A diagnosis whose repair path is blocked is an incomplete diagnosis — flag it and identify the blocker. Examples: before declaring "add TTL" as the fix, run ALTER TABLE with a low-timeout dry-run; before declaring "restart service X" as the fix, check that the service can respond to SIGTERM. Do NOT defer this check to the implementation phase — a fix that can't be applied invalidates or constrains the diagnosis.
 
 Output: either "No weaknesses found" with a specific defense of each link, or a numbered list of weaknesses.
 
