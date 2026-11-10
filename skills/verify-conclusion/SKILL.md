@@ -151,9 +151,9 @@ Derived from real agent errors in this environment:
 
 ### ⑤ Intermediate state reported as final conclusion
 
-**Pattern:** A session_search DISCOVERY result shows "X is pending" in the middle of a session, but the same session's bookend_end resolved it. Agent reports the pending state without checking the end.
+**Pattern:** A transcript-search DISCOVERY result shows "X is pending" in the middle of a session, but the same session's bookend_end resolved it. Agent reports the pending state without checking the end.
 
-**Fix:** After any lookup (especially session_search), always check whether the same source later updated or invalidated the finding.
+**Fix:** After any lookup (especially a search that returns partial, paginated, or time-sliced results), always check whether the same source later updated or invalidated the finding.
 
 ### ⑥ Apologize first, investigate later
 
@@ -305,7 +305,7 @@ An anomaly is either pre-existing stock (already there before the window) or new
 **c) Negative claims carry the same evidence burden as positive ones.**
 "Why we must not do Y" is a claim; unverified it hardens into a permanent false constraint. Two prohibitions that each collapsed under a single query: "deleting rows would desync the search index" (the table had insert/delete/update triggers — it would have stayed in sync); "VACUUM needs an equal amount of free space" (hundreds of GB free; the real cost was an exclusive lock, not space). Verify the mechanism behind a prohibition exactly like a proposed fix; if it fails, keep the recommendation only if a *different* verified reason supports it — and say which reason survived.
 
-**Domain note:** for byte/disk-size anomalies the concrete attribution recipe (per-object deltas, index amplification factor, reconciliation across independent measures) lives in the `host-management` skill (its SQLite state.db monitoring reference).
+**Domain note:** for byte/disk-size anomalies the concrete attribution recipe (per-object deltas, index amplification factor, reconciliation across independent measures) is not bundled here — it is a companion write-up, not a requirement of this skill. The mechanism above stands on its own; treat the recipe as an optional next step.
 
 ### ⑱ A skipped assertion reads exactly like a passing one — prove the exercised branch fired
 
@@ -420,7 +420,7 @@ branch holds the switch, the export dialog has its own granularity control.
 **Fix — exercise the option surface before any "cannot" claim:**
 1. Open the range/period/step selector and try the **extreme** admissible setting (single day, single hour, one
    row) rather than only the presets.
-2. Open every "高级 / 更多 / 自定义" branch of the same control and of the export/save dialog.
+2. Open every `高级` / `更多` / `自定义` branch of the same control and of the export/save dialog.
 3. Only if the finest admissible selection still returns coarse data may you state the ceiling — and say which
    option you tried, so the user can correct the path instead of just the conclusion.
 
